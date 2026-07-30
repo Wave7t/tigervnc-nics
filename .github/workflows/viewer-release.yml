@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gettext libavcodec-dev libavutil-dev libfltk1.3-dev \
+            dpkg-dev gettext libavcodec-dev libavutil-dev libfltk1.3-dev \
             libgmp-dev libgnutls28-dev libgtest-dev libjpeg-turbo8-dev \
             libpixman-1-dev libswscale-dev nettle-dev \
             libx11-dev libxdamage-dev libxext-dev libxfixes-dev \
@@ -51,8 +51,10 @@ jobs:
         run: |
           set -euo pipefail
           version="$(sed -n 's/^set(VERSION \([^)]*\)).*/\1/p' CMakeLists.txt)"
-          package="TigerVNC-Viewer-Linux-x86_64-${version}"
-          root="dist/${package}"
+          package="tigervnc-viewer"
+          architecture="$(dpkg --print-architecture)"
+          root="dist/debian/${package}"
+          output="TigerVNC-Viewer-Ubuntu-24.04-${architecture}-${version}.deb"
 
           install -Dm755 build/vncviewer/vncviewer "${root}/usr/bin/vncviewer"
           install -Dm644 vncviewer/vncviewer.man "${root}/usr/share/man/man1/vncviewer.1"
@@ -72,15 +74,74 @@ jobs:
             install -Dm644 "build/po/${lang}.mo" \
               "${root}/usr/share/locale/${lang}/LC_MESSAGES/tigervnc.mo"
           done < po/LINGUAS
-          install -Dm644 LICENCE.TXT "${root}/usr/share/doc/tigervnc/LICENCE.TXT"
+          install -Dm644 LICENCE.TXT \
+            "${root}/usr/share/doc/${package}/copyright"
           install -Dm644 doc/ssh-tunnel.md \
-            "${root}/usr/share/doc/tigervnc/ssh-tunnel.md"
+            "${root}/usr/share/doc/${package}/ssh-tunnel.md"
+          gzip -9n "${root}/usr/share/man/man1/vncviewer.1"
 
-          tar -C dist -czf "${package}.tar.gz" "${package}"
+          install -d "${root}/DEBIAN"
+          cat > dist/debian/control <<EOF
+          Source: ${package}
+          Section: x11
+          Priority: optional
+          Maintainer: Wave7t <noreply@github.com>
+          Standards-Version: 4.6.2
+          Homepage: https://github.com/Wave7t/tigervnc-nics
+
+          Package: ${package}
+          Architecture: any
+          Description: TigerVNC Viewer with portable SSH tunnel profiles
+           A high-performance VNC client with cross-platform SSH tunnel
+           connection profiles.
+          EOF
+          cat > "${root}/DEBIAN/control" <<EOF
+          Package: ${package}
+          Version: ${version}
+          Section: x11
+          Priority: optional
+          Architecture: ${architecture}
+          Maintainer: Wave7t <noreply@github.com>
+          Description: TigerVNC Viewer with portable SSH tunnel profiles
+           A high-performance VNC client with cross-platform SSH tunnel
+           connection profiles.
+          EOF
+
+          depends="$(
+            cd dist
+            dpkg-shlibdeps \
+              -O -e"debian/${package}/usr/bin/vncviewer" |
+              sed -n 's/^shlibs:Depends=//p'
+          )"
+          test -n "$depends"
+          installed_size="$(du -sk "${root}/usr" | cut -f1)"
+          cat > "${root}/DEBIAN/control" <<EOF
+          Package: ${package}
+          Version: ${version}
+          Section: x11
+          Priority: optional
+          Architecture: ${architecture}
+          Maintainer: Wave7t <noreply@github.com>
+          Installed-Size: ${installed_size}
+          Depends: ${depends}
+          Recommends: openssh-client
+          Homepage: https://github.com/Wave7t/tigervnc-nics
+          Description: TigerVNC Viewer with portable SSH tunnel profiles
+           A high-performance VNC client with cross-platform SSH tunnel
+           connection profiles.
+          EOF
+
+          dpkg-deb --root-owner-group --build "$root" "$output"
+          dpkg-deb --info "$output"
+          test "$(dpkg-deb --field "$output" Package)" = "$package"
+          test "$(dpkg-deb --field "$output" Architecture)" = "$architecture"
+          sudo apt-get install -y "./${output}"
+          test "$(dpkg-query -W -f='${Status}' "$package")" = \
+            "install ok installed"
       - uses: actions/upload-artifact@v7
         with:
           name: viewer-linux
-          path: TigerVNC-Viewer-Linux-*.tar.gz
+          path: TigerVNC-Viewer-Ubuntu-24.04-*.deb
           if-no-files-found: error
 
   build-windows:
@@ -210,6 +271,11 @@ jobs:
           - Native Windows OpenSSH tunneling with managed process lifetime.
           - SSH tunnel options are available on Linux, macOS, and Windows.
           - Windows installer registration for `.tigervnc` connection profiles.
+
+          Packages:
+          - Ubuntu 24.04 (amd64): install the `.deb` with `apt` or `dpkg`.
+          - macOS Apple silicon (arm64): open the `.dmg` directly.
+          - Windows (x86_64): run the `.exe` installer directly.
           EOF
           printf '\nVersion: %s\n' "$version" >> release-notes.md
       - name: Publish GitHub Release
