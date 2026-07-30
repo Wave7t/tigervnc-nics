@@ -16,6 +16,21 @@
 	<string>tigervnc.icns</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.tigervnc.tigervnc</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>TigerVNC Connection</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.tigervnc.connection</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleLongVersionString</key>
@@ -32,5 +47,27 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright (C) 1999-2026 TigerVNC team and many others (see README.rst)</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>TigerVNC Connection</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.tigervnc.connection</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>tigervnc</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-tigervnc</string>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -121,6 +121,10 @@ if(UNIX)
   endif()
   add_custom_target(desktop ALL DEPENDS vncviewer.desktop)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/vncviewer.desktop DESTINATION ${CMAKE_INSTALL_FULL_DATADIR}/applications)
+  if(NOT APPLE)
+    install(FILES org.tigervnc.connection.xml
+            DESTINATION ${CMAKE_INSTALL_FULL_DATADIR}/mime/packages)
+  endif()
 
   if("${GETTEXT_VERSION_STRING}" VERSION_GREATER 0.19.6)
     add_custom_command(OUTPUT org.tigervnc.vncviewer.metainfo.xml

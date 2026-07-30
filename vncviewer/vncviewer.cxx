@@ -32,6 +32,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#ifndef WIN32
+#include <sys/wait.h>
+#endif
 
 #ifdef WIN32
 #include <core/winerrno.h>
@@ -56,6 +59,9 @@
 #include <FL/Fl_PNG_Image.H>
 #include <FL/Fl_Sys_Menu_Bar.H>
 #include <FL/fl_ask.H>
+#ifdef __APPLE__
+#include <FL/x.H>
+#endif
 
 #include "fltk/theme.h"
 #include "fltk/util.h"
@@ -214,14 +220,11 @@ static void mainloop(const char* vncserver, network::Socket* sock)
 }
 
 #ifdef __APPLE__
-static void about_callback(Fl_Widget* /*widget*/, void* /*data*/)
-{
-  about_vncviewer();
-}
+static bool acceptingStartupOpenEvent = true;
 
-static void new_connection_cb(Fl_Widget* /*widget*/, void* /*data*/)
+static void start_new_connection(const char* filename)
 {
-  const char *argv[2];
+  const char *childArgv[3];
   pid_t pid;
 
   pid = fork();
@@ -233,13 +236,38 @@ static void new_connection_cb(Fl_Widget* /*widget*/, void* /*data*/)
   if (pid != 0)
     return;
 
-  argv[0] = argv0;
-  argv[1] = nullptr;
+  childArgv[0] = argv0;
+  childArgv[1] = filename;
+  childArgv[2] = nullptr;
 
-  execvp(argv[0], (char * const *)argv);
+  execvp(childArgv[0], (char * const *)childArgv);
 
   vlog.error(_("Error starting new connection: %s"), strerror(errno));
   _exit(1);
+}
+
+static void open_connection_file(const char* filename)
+{
+  if ((filename == nullptr) || (filename[0] == '\0'))
+    return;
+
+  if (acceptingStartupOpenEvent && (vncServerName[0] == '\0')) {
+    strncpy(vncServerName, filename, VNCSERVERNAMELEN);
+    vncServerName[VNCSERVERNAMELEN - 1] = '\0';
+    return;
+  }
+
+  start_new_connection(filename);
+}
+
+static void about_callback(Fl_Widget* /*widget*/, void* /*data*/)
+{
+  about_vncviewer();
+}
+
+static void new_connection_cb(Fl_Widget* /*widget*/, void* /*data*/)
+{
+  start_new_connection(nullptr);
 }
 #endif
 
@@ -519,15 +547,34 @@ createTunnel(const char *gatewayHost, const char *remoteHost,
   setenv("R", rport, 1);
   setenv("L", lport, 1);
   if (!cmd)
-    cmd = "/usr/bin/ssh -f -L \"$L\":\"$H\":\"$R\" \"$G\" sleep 20";
+    cmd = "/usr/bin/ssh -f -o ExitOnForwardFailure=yes "
+          "-L \"$L\":\"$H\":\"$R\" \"$G\" sleep 20";
   /* Compatibility with TigerVNC's method. */
   cmd2 = strdup(cmd);
   while ((percent = strchr(cmd2, '%')) != nullptr)
     *percent = '$';
   int res = system(cmd2);
-  if (res != 0)
-    vlog.error(_("Failed to create tunnel: '%s' returned %d"),
-               cmd2, res);
+  if (res != 0) {
+    std::string error;
+
+    if (res == -1) {
+      error = core::format(
+        _("Failed to run SSH tunnel command: %s"), strerror(errno));
+    } else if (WIFEXITED(res)) {
+      error = core::format(
+        _("Failed to create SSH tunnel: command exited with status %d"),
+        WEXITSTATUS(res));
+    } else if (WIFSIGNALED(res)) {
+      error = core::format(
+        _("Failed to create SSH tunnel: command was terminated by signal %d"),
+        WTERMSIG(res));
+    } else {
+      error = _("Failed to create SSH tunnel");
+    }
+
+    free(cmd2);
+    throw std::runtime_error(error);
+  }
   free(cmd2);
 }
 
@@ -639,6 +686,12 @@ int main(int argc, char** argv)
   // Handle any old settings specified on the command line
   migrateDeprecatedOptions();
 
+#ifdef __APPLE__
+  // Register before FLTK opens the display so Finder launch events can provide
+  // the connection profile before the server dialog is shown.
+  fl_open_callback(open_connection_file);
+#endif
+
 #if !defined(WIN32) && !defined(__APPLE__)
   if (strcmp(display, "") != 0) {
     Fl::display(display);
@@ -651,6 +704,9 @@ int main(int argc, char** argv)
 
   // Check if the server name in reality is a configuration file
   potentiallyLoadConfigurationFile(vncServerName);
+#ifdef __APPLE__
+  acceptingStartupOpenEvent = false;
+#endif
 
   create_base_dirs();
 
@@ -663,6 +719,12 @@ int main(int argc, char** argv)
     // from a file or the Windows registry.
     vlog.error(_("Parameters -listen and -via are incompatible"));
     abort_vncviewer(_("Parameters -listen and -via are incompatible"));
+    return 1; /* Not reached */
+  }
+#else
+  if (strlen(via) > 0) {
+    abort_vncviewer(
+      _("SSH tunneling is not supported by the Windows viewer yet"));
     return 1; /* Not reached */
   }
 #endif

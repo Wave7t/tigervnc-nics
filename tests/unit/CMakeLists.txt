@@ -36,6 +36,17 @@ add_executable(parameters parameters.cxx)
 target_link_libraries(parameters core GTest::gtest_main)
 gtest_discover_tests(parameters)
 
+if(BUILD_VIEWER)
+  add_executable(viewerparameters
+    viewerparameters.cxx
+    ../../vncviewer/MonitorIndicesParameter.cxx
+    ../../vncviewer/parameters.cxx)
+  target_include_directories(viewerparameters SYSTEM PUBLIC ${FLTK_INCLUDE_DIR})
+  target_link_libraries(viewerparameters
+    rfbclient rfb network rdr core ${FLTK_LIBRARIES} GTest::gtest_main)
+  gtest_discover_tests(viewerparameters)
+endif()
+
 add_executable(pixelformat pixelformat.cxx)
 target_link_libraries(pixelformat rfb GTest::gtest_main)
 gtest_discover_tests(pixelformat)
