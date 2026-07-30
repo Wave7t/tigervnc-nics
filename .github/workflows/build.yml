@@ -1,6 +1,13 @@
 name: Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - '**'
+    paths-ignore:
+      - '.github/workflows/build.yml'
+      - '.github/workflows/viewer-release.yml'
+  pull_request:
 
 jobs:
   build-linux:

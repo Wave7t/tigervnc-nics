@@ -1,0 +1,213 @@
+name: Viewer Release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'viewer-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gettext libavcodec-dev libavutil-dev libfltk1.3-dev \
+            libgmp-dev libgnutls28-dev libgtest-dev libjpeg-turbo8-dev \
+            libpixman-1-dev libswscale-dev nettle-dev \
+            libx11-dev libxdamage-dev libxext-dev libxfixes-dev \
+            libxrandr-dev libxtst-dev zlib1g-dev
+      - name: Configure
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_JAVA=OFF \
+            -DBUILD_VIEWER=ON \
+            -DENABLE_GNUTLS=ON \
+            -DENABLE_H264=ON \
+            -DENABLE_NETTLE=ON \
+            -DENABLE_NLS=ON \
+            -DENABLE_PAM=OFF \
+            -DENABLE_PWQUALITY=OFF \
+            -DENABLE_SELINUX=OFF \
+            -DENABLE_SYSTEMD=OFF \
+            -DENABLE_WAYLAND=OFF \
+            -S . -B build
+      - name: Build and test Viewer
+        run: |
+          cmake --build build --target vncviewer viewerparameters translations desktop appstream --parallel
+          ctest --test-dir build/tests/unit -R ViewerParametersTest --output-on-failure
+      - name: Package Viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^set(VERSION \([^)]*\)).*/\1/p' CMakeLists.txt)"
+          package="TigerVNC-Viewer-Linux-x86_64-${version}"
+          root="dist/${package}"
+
+          install -Dm755 build/vncviewer/vncviewer "${root}/usr/bin/vncviewer"
+          install -Dm644 vncviewer/vncviewer.man "${root}/usr/share/man/man1/vncviewer.1"
+          install -Dm644 build/vncviewer/vncviewer.desktop \
+            "${root}/usr/share/applications/vncviewer.desktop"
+          install -Dm644 vncviewer/org.tigervnc.connection.xml \
+            "${root}/usr/share/mime/packages/org.tigervnc.connection.xml"
+          install -Dm644 build/vncviewer/org.tigervnc.vncviewer.metainfo.xml \
+            "${root}/usr/share/metainfo/org.tigervnc.vncviewer.metainfo.xml"
+          install -Dm644 media/icons/tigervnc.svg \
+            "${root}/usr/share/icons/hicolor/scalable/apps/tigervnc.svg"
+          for size in 16 22 24 32 48 64 128; do
+            install -Dm644 "media/icons/tigervnc_${size}.png" \
+              "${root}/usr/share/icons/hicolor/${size}x${size}/apps/tigervnc.png"
+          done
+          while IFS= read -r lang; do
+            install -Dm644 "build/po/${lang}.mo" \
+              "${root}/usr/share/locale/${lang}/LC_MESSAGES/tigervnc.mo"
+          done < po/LINGUAS
+          install -Dm644 LICENCE.TXT "${root}/usr/share/doc/tigervnc/LICENCE.TXT"
+          install -Dm644 doc/ssh-tunnel.md \
+            "${root}/usr/share/doc/tigervnc/ssh-tunnel.md"
+
+          tar -C dist -czf "${package}.tar.gz" "${package}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: viewer-linux
+          path: TigerVNC-Viewer-Linux-*.tar.gz
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+      - name: Install dependencies
+        run: |
+          pacman --sync --noconfirm --needed \
+            make mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
+          pacman --sync --noconfirm --needed \
+            mingw-w64-x86_64-fltk1.3 mingw-w64-x86_64-gmp \
+            mingw-w64-x86_64-gnutls mingw-w64-x86_64-gtest \
+            mingw-w64-x86_64-libjpeg-turbo mingw-w64-x86_64-nettle \
+            mingw-w64-x86_64-pixman
+      - name: Configure
+        run: |
+          cmake \
+            -G "MSYS Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_JAVA=OFF \
+            -DBUILD_VIEWER=ON \
+            -DENABLE_GNUTLS=ON \
+            -DENABLE_H264=ON \
+            -DENABLE_NETTLE=ON \
+            -DENABLE_NLS=ON \
+            -S . -B build
+      - name: Build and test Viewer
+        run: |
+          cmake --build build --target viewerparameters
+          ctest --test-dir build/tests/unit -R ViewerParametersTest --output-on-failure
+          cmake --build build --target translations installer
+      - name: Package Viewer
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^set(VERSION \([^)]*\)).*/\1/p' CMakeLists.txt)"
+          source="$(find build/release -maxdepth 1 -name 'tigervnc*.exe' ! -name '*winvnc*' -print -quit)"
+          test -n "$source"
+          cp "$source" "TigerVNC-Viewer-Windows-x86_64-${version}.exe"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: viewer-windows
+          path: TigerVNC-Viewer-Windows-*.exe
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          brew install fltk@1.3 gettext gmp gnutls googletest nettle pixman ffmpeg
+          brew link fltk@1.3
+      - name: Configure
+        run: |
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_JAVA=OFF \
+            -DBUILD_VIEWER=ON \
+            -DBUILD_WINVNC=0 \
+            -DENABLE_GNUTLS=ON \
+            -DENABLE_H264=ON \
+            -DENABLE_NETTLE=ON \
+            -DENABLE_NLS=ON \
+            -S . -B build
+      - name: Build and test Viewer
+        run: |
+          cmake --build build --target vncviewer viewerparameters translations --parallel
+          ctest --test-dir build/tests/unit -R ViewerParametersTest --output-on-failure
+          cmake --build build --target dmg --parallel
+      - name: Package Viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^set(VERSION \([^)]*\)).*/\1/p' CMakeLists.txt)"
+          cp "build/release/TigerVNC-${version}.dmg" \
+            "TigerVNC-Viewer-macOS-${version}.dmg"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: viewer-macos
+          path: TigerVNC-Viewer-macOS-*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build-linux
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - name: Create checksums and release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#viewer-v}"
+          (cd release-artifacts && sha256sum * > SHA256SUMS.txt)
+          cat > release-notes.md <<'EOF'
+          This Viewer-only prerelease adds portable SSH tunnel connection profiles.
+
+          Highlights:
+          - Save the VNC server and SSH gateway together in a `.tigervnc` profile.
+          - Native Windows OpenSSH tunneling with managed process lifetime.
+          - SSH tunnel options are available on Linux, macOS, and Windows.
+          - Windows installer registration for `.tigervnc` connection profiles.
+          EOF
+          printf '\nVersion: %s\n' "$version" >> release-notes.md
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-artifacts/* \
+            --verify-tag \
+            --prerelease \
+            --title "TigerVNC Viewer ${GITHUB_REF_NAME#viewer-v}" \
+            --notes-file release-notes.md
