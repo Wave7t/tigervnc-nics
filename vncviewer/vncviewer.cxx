@@ -32,9 +32,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#ifndef WIN32
-#include <sys/wait.h>
-#endif
 
 #ifdef WIN32
 #include <core/winerrno.h>
@@ -532,67 +529,6 @@ create_base_dirs()
   }
 }
 
-#ifndef WIN32
-static void
-createTunnel(const char *gatewayHost, const char *remoteHost,
-             int remotePort, int localPort)
-{
-  const char *cmd = getenv("VNC_VIA_CMD");
-  char *cmd2, *percent;
-  char lport[10], rport[10];
-  sprintf(lport, "%d", localPort);
-  sprintf(rport, "%d", remotePort);
-  setenv("G", gatewayHost, 1);
-  setenv("H", remoteHost, 1);
-  setenv("R", rport, 1);
-  setenv("L", lport, 1);
-  if (!cmd)
-    cmd = "/usr/bin/ssh -f -o ExitOnForwardFailure=yes "
-          "-L \"$L\":\"$H\":\"$R\" \"$G\" sleep 20";
-  /* Compatibility with TigerVNC's method. */
-  cmd2 = strdup(cmd);
-  while ((percent = strchr(cmd2, '%')) != nullptr)
-    *percent = '$';
-  int res = system(cmd2);
-  if (res != 0) {
-    std::string error;
-
-    if (res == -1) {
-      error = core::format(
-        _("Failed to run SSH tunnel command: %s"), strerror(errno));
-    } else if (WIFEXITED(res)) {
-      error = core::format(
-        _("Failed to create SSH tunnel: command exited with status %d"),
-        WEXITSTATUS(res));
-    } else if (WIFSIGNALED(res)) {
-      error = core::format(
-        _("Failed to create SSH tunnel: command was terminated by signal %d"),
-        WTERMSIG(res));
-    } else {
-      error = _("Failed to create SSH tunnel");
-    }
-
-    free(cmd2);
-    throw std::runtime_error(error);
-  }
-  free(cmd2);
-}
-
-static void mktunnel()
-{
-  const char *gatewayHost;
-  std::string remoteHost;
-  int localPort = network::findFreeTcpPort();
-  int remotePort;
-
-  network::getHostAndPort(vncServerName, &remoteHost, &remotePort);
-  snprintf(vncServerName, VNCSERVERNAMELEN, "localhost::%d", localPort);
-  vncServerName[VNCSERVERNAMELEN - 1] = '\0';
-  gatewayHost = (const char*)via;
-  createTunnel(gatewayHost, remoteHost.c_str(), remotePort, localPort);
-}
-#endif /* !WIN32 */
-
 int main(int argc, char** argv)
 {
   argv0 = argv[0];
@@ -712,7 +648,6 @@ int main(int argc, char** argv)
 
   network::Socket* sock = nullptr;
 
-#ifndef WIN32
   /* Specifying -via and -listen together is nonsense */
   if (listenMode && strlen(via) > 0) {
     // TRANSLATORS: "Parameters" are command line arguments, or settings
@@ -721,13 +656,6 @@ int main(int argc, char** argv)
     abort_vncviewer(_("Parameters -listen and -via are incompatible"));
     return 1; /* Not reached */
   }
-#else
-  if (strlen(via) > 0) {
-    abort_vncviewer(
-      _("SSH tunneling is not supported by the Windows viewer yet"));
-    return 1; /* Not reached */
-  }
-#endif
 
   if (listenMode) {
     std::list<network::SocketListener*> listeners;
@@ -784,16 +712,6 @@ int main(int argc, char** argv)
         return 1;
     }
 
-#ifndef WIN32
-    if (strlen(via) > 0) {
-      try {
-        mktunnel();
-      } catch (std::exception& e) {
-        vlog.error("%s", e.what());
-        abort_vncviewer(_("Failure setting up encrypted tunnel:\n\n%s"), e.what());
-      }
-    }
-#endif
   }
 
   inMainloop = true;

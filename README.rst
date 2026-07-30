@@ -54,9 +54,9 @@ All versions of TigerVNC contain the following programs:
               vncviewer connects to a VNC server and allows you to interact
               with the remote desktop being displayed by the VNC server.  The
               VNC server can be running on a Windows or a Unix/Linux machine.
-              On Linux and macOS, SSH tunnel settings can be saved together
-              with the VNC server as a ``.tigervnc`` connection profile. See
-              ``doc/ssh-tunnel.md`` for usage and the Windows extension plan.
+              SSH tunnel settings can be saved together with the VNC server
+              as a ``.tigervnc`` connection profile. See
+              ``doc/ssh-tunnel.md`` for usage and platform details.
 
 
 Windows-specific

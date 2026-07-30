@@ -66,6 +66,7 @@
 #include "OptionsDialog.h"
 #include "DesktopWindow.h"
 #include "PlatformPixelBuffer.h"
+#include "SshTunnel.h"
 #include "parameters.h"
 #include "vncviewer.h"
 
@@ -92,7 +93,7 @@ static const rfb::PixelFormat mediumColourPF(8, 8, false, true,
 static const unsigned bpsEstimateWindow = 1000;
 
 CConn::CConn()
-  : serverPort(0), sock(nullptr),
+  : serverPort(0), sock(nullptr), tunnel(nullptr),
     msgTimer(this, &CConn::processNextMsg), desktop(nullptr),
     updateCount(0), pixelCount(0),
     lastServerEncoding((unsigned int)-1), bpsEstimate(20000000)
@@ -159,22 +160,31 @@ CConn::~CConn()
 
     delete sock;
   }
+
+  delete tunnel;
 }
 
 void CConn::connect(const char* vncServerName, network::Socket* socket)
 {
+  const char* connectServerName = vncServerName;
+
   sock = socket;
   if(sock == nullptr) {
     try {
+      if (strlen(via) > 0) {
+        tunnel = new SshTunnel(via, vncServerName);
+        connectServerName = tunnel->getServerName();
+      }
+
 #ifndef WIN32
-      if (strchr(vncServerName, '/') != nullptr) {
-        sock = new network::UnixSocket(vncServerName);
+      if (strchr(connectServerName, '/') != nullptr) {
+        sock = new network::UnixSocket(connectServerName);
         serverHost = sock->getPeerAddress();
         vlog.info(_("Connected to socket %s"), serverHost.c_str());
       } else
 #endif
       {
-        network::getHostAndPort(vncServerName, &serverHost, &serverPort);
+        network::getHostAndPort(connectServerName, &serverHost, &serverPort);
 
         sock = new network::TcpSocket(serverHost.c_str(), serverPort);
         vlog.info(_("Connected to host %s port %d"),

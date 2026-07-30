@@ -17,6 +17,7 @@ add_executable(vncviewer
   EmulateMB.cxx
   ServerDialog.cxx
   ShortcutHandler.cxx
+  SshTunnel.h
   Surface.cxx
   OptionsDialog.cxx
   PlatformPixelBuffer.cxx
@@ -41,15 +42,18 @@ endif()
 if(WIN32)
   target_sources(vncviewer PRIVATE Win32TouchHandler.cxx win32.c)
   target_sources(vncviewer PRIVATE KeyboardWin32.cxx keysym2ucs.c)
+  target_sources(vncviewer PRIVATE SshTunnel_Win32.cxx)
   target_sources(vncviewer PRIVATE Surface_Win32.cxx)
 elseif(APPLE)
   target_sources(vncviewer PRIVATE cocoa.mm)
   target_sources(vncviewer PRIVATE KeyboardMacOS.mm osx_to_qnum.c keysym2ucs.c)
+  target_sources(vncviewer PRIVATE SshTunnel.cxx)
   target_sources(vncviewer PRIVATE Surface_OSX.cxx)
 else()
   target_sources(vncviewer PRIVATE x11.cxx)
   target_sources(vncviewer PRIVATE GestureHandler.cxx XInputTouchHandler.cxx)
   target_sources(vncviewer PRIVATE KeyboardX11.cxx xkb_to_qnum.c)
+  target_sources(vncviewer PRIVATE SshTunnel.cxx)
   target_sources(vncviewer PRIVATE Surface_X11.cxx)
 endif()
 
@@ -68,7 +72,7 @@ if(GNUTLS_FOUND)
 endif()
 
 if(WIN32)
-  target_link_libraries(vncviewer msimg32)
+  target_link_libraries(vncviewer iphlpapi msimg32)
 elseif(APPLE)
   target_link_libraries(vncviewer "-framework Cocoa")
   target_link_libraries(vncviewer "-framework Carbon")

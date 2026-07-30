@@ -10,6 +10,7 @@ AppPublisherURL=https://tigervnc.org
 DefaultDirName={pf}\TigerVNC
 DefaultGroupName=TigerVNC
 LicenseFile=@CMAKE_SOURCE_DIR@\LICENCE.TXT
+ChangesAssociations=yes
 
 [Files]
 Source: "@CMAKE_BINARY_DIR@\vncviewer\vncviewer.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace; 
@@ -31,3 +32,10 @@ Name: "{group}\Listening TigerVNC"; FileName: "{app}\vncviewer.exe"; Parameters:
 Name: "{group}\License"; FileName: "write.exe"; Parameters: "LICENCE.TXT"; WorkingDir: "{app}"; Flags: "useapppaths"
 Name: "{group}\Read Me"; FileName: "write.exe"; Parameters: "README.rst"; WorkingDir: "{app}"; Flags: "useapppaths"
 Name: "{group}\Uninstall TigerVNC"; FileName: "{uninstallexe}"; WorkingDir: "{app}";
+
+[Registry]
+Root: HKA; Subkey: "Software\Classes\.tigervnc"; ValueType: string; ValueName: ""; ValueData: "TigerVNC.Connection"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.tigervnc"; ValueType: string; ValueName: "Content Type"; ValueData: "application/x-tigervnc"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\TigerVNC.Connection"; ValueType: string; ValueName: ""; ValueData: "TigerVNC Connection"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\TigerVNC.Connection\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\vncviewer.exe,0"
+Root: HKA; Subkey: "Software\Classes\TigerVNC.Connection\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\vncviewer.exe"" ""%1"""

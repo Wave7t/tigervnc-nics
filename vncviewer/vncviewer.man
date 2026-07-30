@@ -51,8 +51,8 @@ The file name needs to include a path separator.  Additional options may be
 given too, but the given configuration file will overwrite any conflicting
 parameters.
 
-On Linux and macOS, the options dialog can bind an SSH gateway to the VNC
-server. Saving those settings to a .tigervnc file creates a connection profile
+The options dialog can bind an SSH gateway to the VNC server. Saving those
+settings to a .tigervnc file creates a connection profile
 that automatically establishes the SSH tunnel before opening VNC. Desktop
 packages register .tigervnc files with the viewer so that these profiles can
 be opened directly.
@@ -354,11 +354,12 @@ Use IPv6 for incoming and outgoing connections. Default is on.
 Automatically create encrypted TCP tunnel to the \fIgateway\fR machine
 before connection, connect to the \fIhost\fR through that tunnel
 (TigerVNC\-specific). By default, this option invokes SSH local port
-forwarding, assuming that SSH client binary can be accessed as
-/usr/bin/ssh. Note that when using the \fB\-via\fR option, the host
+forwarding. On Unix, the SSH client is expected at /usr/bin/ssh. On Windows,
+ssh.exe is located through PATH and managed for the lifetime of the connection.
+Note that when using the \fB\-via\fR option, the host
 machine name should be specified as known to the gateway machine, e.g.
 "localhost" denotes the \fIgateway\fR, not the machine where vncviewer
-was launched. The environment variable \fIVNC_VIA_CMD\fR can override
+was launched. On Unix, the environment variable \fIVNC_VIA_CMD\fR can override
 the default tunnel command of
 \fB/usr/bin/ssh\ \-f\ \-o\ ExitOnForwardFailure=yes\ \-L\ "$L":"$H":"$R"\ "$G"\ sleep\ 20\fR.  The tunnel
 command is executed with the environment variables \fIL\fR, \fIH\fR,

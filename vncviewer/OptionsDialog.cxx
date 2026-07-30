@@ -95,9 +95,7 @@ OptionsDialog::OptionsDialog()
 
     createCompressionPage(tx, ty, tw, th);
     createSecurityPage(tx, ty, tw, th);
-#ifndef WIN32
     createSshPage(tx, ty, tw, th);
-#endif
     createInputPage(tx, ty, tw, th);
     createShortcutsPage(tx, ty, tw, th);
     createDisplayPage(tx, ty, tw, th);
@@ -317,12 +315,10 @@ void OptionsDialog::loadOptions(void)
 #endif
 #endif
 
-#ifndef WIN32
   /* SSH tunnel */
   sshTunnelCheckbox->value(strlen(via) > 0);
   viaInput->value(via);
   handleSshTunnel(sshTunnelCheckbox, this);
-#endif
 
   /* Input */
   viewOnlyCheckbox->value(viewOnly);
@@ -475,13 +471,11 @@ void OptionsDialog::storeOptions(void)
   rfb::SecurityClient::secTypes.setParam(security.ToString());
 #endif
 
-#ifndef WIN32
   /* SSH tunnel */
   if (sshTunnelCheckbox->value())
     via.setParam(viaInput->value());
   else
     via.setParam("");
-#endif
 
   /* Input */
   viewOnly.setParam(viewOnlyCheckbox->value());
@@ -907,7 +901,6 @@ void OptionsDialog::createSecurityPage(int tx, int ty, int tw, int th)
 }
 
 
-#ifndef WIN32
 void OptionsDialog::createSshPage(int tx, int ty, int tw, int th)
 {
   Fl_Group *group = new Fl_Group(tx, ty, tw, th, _("SSH tunnel"));
@@ -929,20 +922,19 @@ void OptionsDialog::createSshPage(int tx, int ty, int tw, int th)
   viaInput->align(FL_ALIGN_LEFT | FL_ALIGN_TOP);
   viaInput->tooltip(
     _("OpenSSH destination, for example user@gateway or an alias from "
-      "~/.ssh/config"));
+      "your SSH configuration"));
   ty += INPUT_HEIGHT + INNER_MARGIN;
 
   help = new Fl_Box(
     tx, ty, width, th - (ty - group->y()) - OUTER_MARGIN,
     _("The VNC server name is resolved from the SSH gateway. "
-      "Use an alias in ~/.ssh/config for custom users, ports, keys, "
+      "Use an alias in your SSH configuration for custom users, ports, keys, "
       "proxy jumps, and other advanced SSH settings. SSH credentials "
       "are never stored in the TigerVNC connection file."));
   help->align(FL_ALIGN_TOP_LEFT | FL_ALIGN_INSIDE | FL_ALIGN_WRAP);
 
   group->end();
 }
-#endif
 
 
 void OptionsDialog::createInputPage(int tx, int ty, int tw, int th)
@@ -1364,7 +1356,6 @@ void OptionsDialog::handleRSAAES(Fl_Widget* /*widget*/, void *data)
 }
 
 
-#ifndef WIN32
 void OptionsDialog::handleSshTunnel(Fl_Widget* /*widget*/, void *data)
 {
   OptionsDialog *dialog = (OptionsDialog*)data;
@@ -1374,7 +1365,6 @@ void OptionsDialog::handleSshTunnel(Fl_Widget* /*widget*/, void *data)
   else
     dialog->viaInput->deactivate();
 }
-#endif
 
 
 void OptionsDialog::handleSystemKeys(Fl_Widget* /*widget*/, void* data)
@@ -1486,13 +1476,11 @@ void OptionsDialog::handleOK(Fl_Widget* /*widget*/, void *data)
 {
   OptionsDialog *dialog = (OptionsDialog*)data;
 
-#ifndef WIN32
   if (dialog->sshTunnelCheckbox->value() &&
       dialog->viaInput->value()[0] == '\0') {
     fl_alert("%s", _("Please enter an SSH gateway, or disable the SSH tunnel."));
     return;
   }
-#endif
 
   dialog->hide();
 

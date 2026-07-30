@@ -29,6 +29,7 @@
 namespace network { class Socket; }
 
 class DesktopWindow;
+class SshTunnel;
 
 class CConn : public rfb::CConnection
 {
@@ -102,6 +103,7 @@ private:
   std::string serverHost;
   int serverPort;
   network::Socket* sock;
+  SshTunnel* tunnel;
   core::MethodTimer<CConn> msgTimer;
 
   DesktopWindow *desktop;

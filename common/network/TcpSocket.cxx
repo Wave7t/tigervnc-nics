@@ -86,6 +86,9 @@ int network::findFreeTcpPort (void)
 {
   int sock;
   struct sockaddr_in addr;
+
+  initSockets();
+
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = INADDR_ANY;

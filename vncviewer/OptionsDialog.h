@@ -55,9 +55,7 @@ protected:
 
   void createCompressionPage(int tx, int ty, int tw, int th);
   void createSecurityPage(int tx, int ty, int tw, int th);
-#ifndef WIN32
   void createSshPage(int tx, int ty, int tw, int th);
-#endif
   void createInputPage(int tx, int ty, int tw, int th);
   void createShortcutsPage(int tx, int ty, int tw, int th);
   void createDisplayPage(int tx, int ty, int tw, int th);
@@ -70,9 +68,7 @@ protected:
   static void handleX509(Fl_Widget *widget, void *data);
   static void handleRSAAES(Fl_Widget *widget, void *data);
 
-#ifndef WIN32
   static void handleSshTunnel(Fl_Widget *widget, void *data);
-#endif
 
   static void handleSystemKeys(Fl_Widget *widget, void *data);
 
@@ -128,11 +124,9 @@ protected:
   Fl_Check_Button *authVncCheckbox;
   Fl_Check_Button *authPlainCheckbox;
 
-#ifndef WIN32
   /* SSH tunnel */
   Fl_Check_Button *sshTunnelCheckbox;
   Fl_Input *viaInput;
-#endif
 
   /* Input */
   Fl_Check_Button *viewOnlyCheckbox;
