@@ -208,6 +208,7 @@ jobs:
           printf '\nVersion: %s\n' "$version" >> release-notes.md
       - name: Publish GitHub Release
         env:
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" release-artifacts/* \
