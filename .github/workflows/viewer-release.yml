@@ -138,18 +138,22 @@ jobs:
           if-no-files-found: error
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
       - name: Install dependencies
         run: |
+          tap_dir="$(brew --repository)/Library/Taps/aws/homebrew-tap"
+          if [[ -d "$tap_dir" ]]; then
+            brew untap aws/tap
+          fi
           brew install fltk@1.3 gettext gmp gnutls googletest nettle pixman ffmpeg
-          brew link fltk@1.3
       - name: Configure
         run: |
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix fltk@1.3)" \
             -DBUILD_JAVA=OFF \
             -DBUILD_VIEWER=ON \
             -DBUILD_WINVNC=0 \
@@ -168,12 +172,14 @@ jobs:
         run: |
           set -euo pipefail
           version="$(sed -n 's/^set(VERSION \([^)]*\)).*/\1/p' CMakeLists.txt)"
+          test "$(uname -m)" = "arm64"
+          file build/vncviewer/vncviewer | grep -q 'arm64'
           cp "build/release/TigerVNC-${version}.dmg" \
-            "TigerVNC-Viewer-macOS-${version}.dmg"
+            "TigerVNC-Viewer-macOS-arm64-${version}.dmg"
       - uses: actions/upload-artifact@v7
         with:
           name: viewer-macos
-          path: TigerVNC-Viewer-macOS-*.dmg
+          path: TigerVNC-Viewer-macOS-arm64-*.dmg
           if-no-files-found: error
 
   release:
