@@ -313,8 +313,19 @@ macOS
 
 make dmg
 
-  Create Macintosh disk image file that contains an application bundle of the
-  TigerVNC viewer
+  Create a Macintosh disk image containing a self-contained, signed application
+  bundle of the TigerVNC viewer and an Applications drag target. Local builds
+  use an ad-hoc signature. Set MACOS_SIGN_IDENTITY to a Developer ID Application
+  identity for distribution. To notarize the disk image as part of the build,
+  also set MACOS_NOTARY_APPLE_ID, MACOS_NOTARY_TEAM_ID, and
+  MACOS_NOTARY_PASSWORD.
+
+  The GitHub Viewer Release workflow imports the Developer ID certificate from
+  the MACOS_CERTIFICATE_P12 secret (base64-encoded PKCS#12), using
+  MACOS_CERTIFICATE_PASSWORD, and reads the identity name from
+  MACOS_SIGN_IDENTITY. Tagged releases fail before packaging when any signing
+  or notarization secret is missing, so an unsigned macOS package cannot be
+  published accidentally.
 
 
 Windows

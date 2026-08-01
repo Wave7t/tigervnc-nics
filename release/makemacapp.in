@@ -1,7 +1,6 @@
 #!/bin/sh
 
-set -u
-set -e
+set -eu
 trap onexit INT
 trap onexit TERM
 trap onexit EXIT
@@ -10,51 +9,113 @@ TMPDIR=
 
 onexit()
 {
-	if [ ! "$TMPDIR" = "" ]; then
-		rm -rf $TMPDIR
+	if [ -n "$TMPDIR" ]; then
+		rm -rf "$TMPDIR"
 	fi
 }
 
-usage()
-{
-	echo "$0"
-	exit 1
-}
-
-UNIVERSAL=0
-
 PACKAGE_NAME=TigerVNC
 VERSION=@VERSION@
-BUILD=@BUILD@
 SRCDIR=@CMAKE_SOURCE_DIR@
 BINDIR=@CMAKE_BINARY_DIR@
+CMAKE_COMMAND=@CMAKE_COMMAND@
+PACKAGE_TRANSLATIONS=@MACOS_PACKAGE_TRANSLATIONS@
+SIGN_IDENTITY=${MACOS_SIGN_IDENTITY:--}
+NOTARY_APPLE_ID=${MACOS_NOTARY_APPLE_ID:-}
+NOTARY_TEAM_ID=${MACOS_NOTARY_TEAM_ID:-}
+NOTARY_PASSWORD=${MACOS_NOTARY_PASSWORD:-}
+OUTPUT_DMG="$PWD/$PACKAGE_NAME-$VERSION.dmg"
 
-if [ -f $PACKAGE_NAME.dmg ]; then
-	rm -f $PACKAGE_NAME.dmg
-fi
+sign_item()
+{
+	if [ "$SIGN_IDENTITY" = "-" ]; then
+		codesign --force --sign - "$1"
+	else
+		codesign --force --options runtime --timestamp \
+			--sign "$SIGN_IDENTITY" "$1"
+	fi
+}
+
+sign_disk_image()
+{
+	if [ "$SIGN_IDENTITY" = "-" ]; then
+		codesign --force --sign - "$1"
+	else
+		codesign --force --timestamp --sign "$SIGN_IDENTITY" "$1"
+	fi
+}
+
+rm -f "$OUTPUT_DMG"
 
 umask 022
-TMPDIR=`mktemp -d /tmp/$PACKAGE_NAME-build.XXXXXX`
-APPROOT="$TMPDIR/dmg/TigerVNC.app"
+TMPDIR=$(mktemp -d "/tmp/$PACKAGE_NAME-build.XXXXXX")
+DMGROOT="$TMPDIR/dmg"
+APPROOT="$DMGROOT/TigerVNC.app"
 mkdir -p "$APPROOT/Contents/MacOS"
 mkdir -p "$APPROOT/Contents/Resources"
 
-install -m 755 $BINDIR/vncviewer/vncviewer "$APPROOT/Contents/MacOS/"
-install -m 644 $SRCDIR/media/icons/tigervnc.icns "$APPROOT/Contents/Resources/"
-install -m 644 $BINDIR/release/Info.plist "$APPROOT/Contents/"
+/usr/bin/install -m 755 "$BINDIR/vncviewer/vncviewer" "$APPROOT/Contents/MacOS/"
+/usr/bin/install -m 644 "$SRCDIR/media/icons/tigervnc.icns" \
+	"$APPROOT/Contents/Resources/"
+/usr/bin/install -m 644 "$BINDIR/release/Info.plist" "$APPROOT/Contents/"
 
-for lang in `cat "$SRCDIR/po/LINGUAS"`; do
-	mkdir -p "$APPROOT/Contents/Resources/locale/$lang/LC_MESSAGES"
-	install -m 644 $BINDIR/po/$lang.mo \
-		"$APPROOT/Contents/Resources/locale/$lang/LC_MESSAGES/tigervnc.mo"
-done
+if [ "$PACKAGE_TRANSLATIONS" = "1" ]; then
+	for lang in $(cat "$SRCDIR/po/LINGUAS"); do
+		mkdir -p "$APPROOT/Contents/Resources/locale/$lang/LC_MESSAGES"
+		/usr/bin/install -m 644 "$BINDIR/po/$lang.mo" \
+			"$APPROOT/Contents/Resources/locale/$lang/LC_MESSAGES/tigervnc.mo"
+	done
+fi
 
-install -m 644 $SRCDIR/LICENCE.TXT $TMPDIR/dmg/
-install -m 644 $SRCDIR/README.rst $TMPDIR/dmg/
+"$CMAKE_COMMAND" -DAPP_BUNDLE="$APPROOT" \
+	-P "$BINDIR/release/BundleMacOS.cmake"
 
-hdiutil create -fs HFS+ -volname $PACKAGE_NAME-$VERSION \
-	-srcfolder "$TMPDIR/dmg" \
-	$TMPDIR/$PACKAGE_NAME-$VERSION.dmg 
-cp $TMPDIR/$PACKAGE_NAME-$VERSION.dmg . 
+# fixup_bundle changes Mach-O load commands, so all code must be signed after
+# dependency bundling. An ad-hoc signature is sufficient for a local build;
+# downloadable releases set MACOS_SIGN_IDENTITY to a Developer ID identity.
+if [ -d "$APPROOT/Contents/Frameworks" ]; then
+	find "$APPROOT/Contents/Frameworks" -type f -name '*.dylib' -print | \
+		while IFS= read -r item; do
+			sign_item "$item"
+		done
+fi
+sign_item "$APPROOT/Contents/MacOS/vncviewer"
+sign_item "$APPROOT"
+codesign --verify --deep --strict --verbose=2 "$APPROOT"
+
+/usr/bin/install -m 644 "$SRCDIR/LICENCE.TXT" "$DMGROOT/"
+/usr/bin/install -m 644 "$SRCDIR/README.rst" "$DMGROOT/"
+
+# Finder displays this as the standard Applications drop target next to the
+# app, allowing installation by dragging TigerVNC onto it.
+ln -s /Applications "$DMGROOT/Applications"
+
+hdiutil create -fs HFS+ -format UDZO -imagekey zlib-level=9 \
+	-volname "$PACKAGE_NAME-$VERSION" -srcfolder "$DMGROOT" "$OUTPUT_DMG"
+
+sign_disk_image "$OUTPUT_DMG"
+codesign --verify --verbose=2 "$OUTPUT_DMG"
+hdiutil verify "$OUTPUT_DMG"
+
+if [ -n "$NOTARY_APPLE_ID$NOTARY_TEAM_ID$NOTARY_PASSWORD" ]; then
+	if [ -z "$NOTARY_APPLE_ID" ] || [ -z "$NOTARY_TEAM_ID" ] || \
+	   [ -z "$NOTARY_PASSWORD" ]; then
+		echo "All MACOS_NOTARY_* variables must be set for notarization" >&2
+		exit 1
+	fi
+	if [ "$SIGN_IDENTITY" = "-" ]; then
+		echo "Notarization requires a Developer ID signing identity" >&2
+		exit 1
+	fi
+
+	xcrun notarytool submit "$OUTPUT_DMG" \
+		--apple-id "$NOTARY_APPLE_ID" \
+		--team-id "$NOTARY_TEAM_ID" \
+		--password "$NOTARY_PASSWORD" --wait
+	xcrun stapler staple "$OUTPUT_DMG"
+	xcrun stapler validate "$OUTPUT_DMG"
+	spctl --assess --type open --context context:primary-signature \
+		--verbose=2 "$OUTPUT_DMG"
+fi
 
 exit

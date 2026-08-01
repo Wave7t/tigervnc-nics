@@ -38,12 +38,21 @@ endif() # WIN32
 
 if(APPLE)
 
-configure_file(makemacapp.in makemacapp)
+if(ENABLE_NLS)
+  set(MACOS_PACKAGE_TRANSLATIONS 1)
+  set(MACOS_DMG_DEPENDENCIES translations)
+else()
+  set(MACOS_PACKAGE_TRANSLATIONS 0)
+endif()
+
+configure_file(makemacapp.in makemacapp @ONLY)
 configure_file(Info.plist.in Info.plist)
+configure_file(BundleMacOS.cmake.in BundleMacOS.cmake @ONLY)
 
 add_custom_command(OUTPUT TigerVNC-${VERSION}.dmg
   COMMAND sh makemacapp
-  DEPENDS vncviewer makemacapp Info.plist)
+  DEPENDS vncviewer ${MACOS_DMG_DEPENDENCIES}
+          makemacapp Info.plist BundleMacOS.cmake)
 add_custom_target(dmg DEPENDS TigerVNC-${VERSION}.dmg)
 
 endif() # APPLE
